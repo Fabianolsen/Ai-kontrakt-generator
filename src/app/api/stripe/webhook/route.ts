@@ -3,8 +3,6 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
-const stripe = getStripe();
-
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,14 +10,16 @@ function getAdminClient() {
   );
 }
 
-const PLAN_BY_PRICE: Record<string, string> = {
-  [process.env.STRIPE_PRICE_BASIS ?? ""]: "basis",
-  [process.env.STRIPE_PRICE_PRO   ?? ""]: "pro",
-};
-
 export async function POST(req: NextRequest) {
+  const stripe = getStripe();
+
   const body = await req.text();
   const sig  = req.headers.get("stripe-signature") ?? "";
+
+  const PLAN_BY_PRICE: Record<string, string> = {
+    [process.env.STRIPE_PRICE_BASIS ?? ""]: "basis",
+    [process.env.STRIPE_PRICE_PRO   ?? ""]: "pro",
+  };
 
   let event: Stripe.Event;
   try {
@@ -47,10 +47,8 @@ export async function POST(req: NextRequest) {
     }
 
     case "invoice.paid": {
-      const invoice   = event.data.object as Stripe.Invoice;
-      // In the Dahlia API the subscription field lives on the parent object
-      // The Dahlia API moved subscription id into invoice.parent
-      const parent = invoice.parent as unknown as Record<string, unknown> | null;
+      const invoice = event.data.object as Stripe.Invoice;
+      const parent  = invoice.parent as unknown as Record<string, unknown> | null;
       const subId: string | null =
         (parent?.subscription as string | null) ??
         ((invoice as unknown as Record<string, unknown>).subscription as string | null);
@@ -61,17 +59,13 @@ export async function POST(req: NextRequest) {
         const plan    = PLAN_BY_PRICE[priceId] ?? "basis";
         const userId  = sub.metadata?.user_id;
         if (userId) {
-          // current_period_end lives on billing_cycle_anchor_config in newer APIs;
-          // fall back to reading it from items
-          const periodEnd: number | undefined =
+          const periodEnd =
             (sub as unknown as Record<string, unknown>).current_period_end as number | undefined;
           await supabase.from("subscriptions").upsert({
             user_id: userId,
             plan,
             stripe_subscription_id: sub.id,
-            valid_until: periodEnd
-              ? new Date(periodEnd * 1000).toISOString()
-              : null,
+            valid_until: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
           });
         }
       }
