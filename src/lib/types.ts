@@ -1,32 +1,37 @@
-export type BoligType = "leilighet" | "hybel" | "enebolig" | "rekkehus";
-export type LeieType = "lopende" | "tidsbegrenset";
-export type KjæledyrType = "ja" | "nei" | "etter_avtale";
+// ── Form data shape (matches JSON sent to Claude API) ────────────────────────
 
-export interface KontraktData {
-  // Steg 1: Utleier
-  utleier_navn: string;
-  utleier_adresse: string;
-  utleier_epost: string;
-  utleier_telefon: string;
-  utleier_er_firma: boolean;
-  utleier_orgnr?: string;
+export type BoligType   = "leilighet" | "hybel" | "enebolig" | "rekkehus";
+export type LeieType    = "lopende"   | "tidsbegrenset";
+export type KjæledyrType = "ja"       | "nei"   | "etter_avtale";
+export type Plan        = "gratis"    | "basis"  | "pro";
 
-  // Steg 2: Leietaker
-  leietaker_navn: string;
-  leietaker_adresse: string;
-  leietaker_epost: string;
-  leietaker_telefon: string;
+export interface Utleier {
+  navn: string;
+  adresse: string;
+  epost: string;
+  telefon: string;
+  er_firma: boolean;
+  orgnr?: string;
+}
 
-  // Steg 3: Boligen
-  bolig_adresse: string;
-  bolig_type: BoligType;
-  bolig_antall_rom: number;
-  bolig_mobler: boolean;
-  inkluderer_strom: boolean;
-  inkluderer_internett: boolean;
-  inkluderer_parkering: boolean;
+export interface Leietaker {
+  navn: string;
+  adresse: string;
+  epost: string;
+  telefon: string;
+}
 
-  // Steg 4: Leievilkår
+export interface Bolig {
+  adresse: string;
+  type: BoligType;
+  antall_rom: number;
+  mobler: boolean;
+  inkl_strom: boolean;
+  inkl_internett: boolean;
+  inkl_parkering: boolean;
+}
+
+export interface Vilkar {
   maned_leie: number;
   forfall_dag: number;
   depositum: number;
@@ -36,20 +41,40 @@ export interface KontraktData {
   sluttdato?: string;
   oppsigelsestid_leietaker: number;
   oppsigelsestid_utleier: number;
+}
 
-  // Steg 5: Tilleggsvilkår
+export interface Tillegg {
   kjaledyr: KjæledyrType;
   royking_tillatt: boolean;
   internett_betaler: string;
   tilleggsvilkar?: string;
 }
 
-export interface Kontrakt {
+/** Nested form_data stored in the `contracts.form_data` jsonb column */
+export interface FormData {
+  utleier:  Utleier;
+  leietaker: Leietaker;
+  bolig:    Bolig;
+  vilkar:   Vilkar;
+  tillegg:  Tillegg;
+}
+
+// ── Database row types ────────────────────────────────────────────────────────
+
+export interface Contract {
   id: string;
   user_id: string;
-  data: KontraktData;
-  innhold: string;
   status: "utkast" | "generert" | "signert";
+  form_data: FormData;
+  generated_text: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Subscription {
+  user_id: string;
+  plan: Plan;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  valid_until: string | null;
 }

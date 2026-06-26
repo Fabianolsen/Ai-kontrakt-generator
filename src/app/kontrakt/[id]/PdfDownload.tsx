@@ -22,24 +22,28 @@ export default function PdfDownload({
       const a = document.createElement("a");
       a.href = url;
       a.download = `leiekontrakt-${kontraktId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Feil ved PDF-generering. Prøv igjen.");
     } finally {
       setLoading(false);
     }
   }
 
+  const icon = loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />;
+
   if (variant === "full") {
     return (
       <button
         onClick={handleDownload}
         disabled={loading}
-        className="flex items-center justify-center gap-2 bg-navy-800 hover:bg-navy-700 disabled:opacity-50 text-white font-semibold px-8 py-3 rounded-xl transition-colors flex-1 sm:flex-none"
+        className="flex items-center justify-center gap-2 text-sm font-semibold px-8 py-3 text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        style={{ background: "#0F1F3D", borderRadius: "8px" }}
       >
-        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+        {icon}
         Last ned som PDF
       </button>
     );
@@ -49,10 +53,11 @@ export default function PdfDownload({
     <button
       onClick={handleDownload}
       disabled={loading}
-      className="flex items-center gap-2 bg-navy-800 hover:bg-navy-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+      className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      style={{ background: "#0F1F3D", borderRadius: "8px" }}
     >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-      Last ned PDF
+      {icon}
+      PDF
     </button>
   );
 }

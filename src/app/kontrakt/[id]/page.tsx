@@ -2,68 +2,96 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ChevronLeft, Mail, Edit2 } from "lucide-react";
-import { Kontrakt } from "@/lib/types";
+import { Contract } from "@/lib/types";
 import PdfDownload from "./PdfDownload";
 
-export default async function KontraktPage({ params }: { params: { id: string } }) {
+export default async function KontraktPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth");
 
-  const { data: kontrakt } = await supabase
-    .from("kontrakter")
+  const { data: contract } = await supabase
+    .from("contracts")
     .select("*")
     .eq("id", params.id)
     .eq("user_id", user.id)
     .single();
 
-  if (!kontrakt) notFound();
+  if (!contract) notFound();
 
-  const k = kontrakt as Kontrakt;
+  const c = contract as Contract;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+    <div className="min-h-screen" style={{ background: "#F8F7F4" }}>
+      {/* Sticky header */}
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-navy-500 hover:text-navy-900">
+            <Link href="/dashboard" className="text-gray-400 hover:text-gray-700">
               <ChevronLeft className="w-5 h-5" />
             </Link>
-            <span className="font-display text-xl font-bold text-navy-800">
-              {k.data?.bolig_adresse || "Leiekontrakt"}
-            </span>
+            <div>
+              <span className="font-display font-bold text-base" style={{ color: "#0F1F3D" }}>
+                {c.form_data?.bolig?.adresse || "Leiekontrakt"}
+              </span>
+              <span className="ml-3 text-xs text-gray-400">
+                {new Date(c.created_at).toLocaleDateString("nb-NO", {
+                  day: "numeric", month: "long", year: "numeric",
+                })}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link
-              href={`/kontrakt/${k.id}/rediger`}
-              className="flex items-center gap-2 border border-gray-200 text-navy-600 hover:border-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              href={`/kontrakt/${c.id}/rediger`}
+              className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:border-gray-300 px-3 py-2 text-sm font-medium transition-colors"
+              style={{ borderRadius: "8px" }}
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="w-3.5 h-3.5" />
               Rediger
             </Link>
-            <PdfDownload kontraktId={k.id} />
+            <PdfDownload kontraktId={c.id} />
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="bg-white rounded-2xl border border-gray-100 p-10 shadow-sm">
-          <article className="prose prose-navy max-w-none">
-            <pre className="whitespace-pre-wrap font-sans text-navy-800 leading-relaxed text-sm">
-              {k.innhold}
-            </pre>
-          </article>
+      <main className="max-w-4xl mx-auto px-6 py-10">
+        {/* Contract document */}
+        <div
+          className="bg-white border border-gray-100 px-12 py-14 shadow-sm"
+          style={{ borderRadius: "8px" }}
+        >
+          <pre
+            className="whitespace-pre-wrap text-sm leading-relaxed"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif", color: "#0F1F3D" }}
+          >
+            {c.generated_text}
+          </pre>
         </div>
 
-        <div className="mt-8 flex flex-col sm:flex-row gap-4">
-          <PdfDownload kontraktId={k.id} variant="full" />
-          <button className="flex items-center justify-center gap-2 border-2 border-navy-200 hover:border-navy-400 text-navy-700 font-semibold px-6 py-3 rounded-xl transition-colors">
-            <Mail className="w-5 h-5" />
-            Send til leietaker
-          </button>
+        {/* Action buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 mt-8">
+          <PdfDownload kontraktId={c.id} variant="full" />
+          <SendEmailButton leietakerEpost={c.form_data?.leietaker?.epost} />
         </div>
       </main>
     </div>
+  );
+}
+
+function SendEmailButton({ leietakerEpost }: { leietakerEpost?: string }) {
+  return (
+    <button
+      className="flex items-center justify-center gap-2 text-sm font-semibold px-6 py-3 border-2 transition-colors"
+      style={{ borderColor: "#0F1F3D", color: "#0F1F3D", borderRadius: "8px" }}
+    >
+      <Mail className="w-4 h-4" />
+      Send til {leietakerEpost ? `(${leietakerEpost})` : "leietaker"}
+    </button>
   );
 }

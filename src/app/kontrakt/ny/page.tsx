@@ -3,62 +3,65 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { KontraktData } from "@/lib/types";
+import { ChevronLeft, ChevronRight, Loader2, AlertTriangle } from "lucide-react";
+import { FormData, Utleier, Leietaker, Bolig, Vilkar, Tillegg } from "@/lib/types";
 
 const TOTAL_STEPS = 6;
 
-const initialData: KontraktData = {
-  utleier_navn: "",
-  utleier_adresse: "",
-  utleier_epost: "",
-  utleier_telefon: "",
-  utleier_er_firma: false,
-  utleier_orgnr: "",
-  leietaker_navn: "",
-  leietaker_adresse: "",
-  leietaker_epost: "",
-  leietaker_telefon: "",
-  bolig_adresse: "",
-  bolig_type: "leilighet",
-  bolig_antall_rom: 2,
-  bolig_mobler: false,
-  inkluderer_strom: false,
-  inkluderer_internett: false,
-  inkluderer_parkering: false,
-  maned_leie: 0,
-  forfall_dag: 1,
-  depositum: 0,
-  depositum_kontonr: "",
-  startdato: "",
-  leie_type: "lopende",
-  sluttdato: "",
-  oppsigelsestid_leietaker: 1,
-  oppsigelsestid_utleier: 3,
-  kjaledyr: "nei",
-  royking_tillatt: false,
-  internett_betaler: "leietaker",
-  tilleggsvilkar: "",
+const initUtleier: Utleier = {
+  navn: "", adresse: "", epost: "", telefon: "", er_firma: false, orgnr: "",
+};
+const initLeietaker: Leietaker = {
+  navn: "", adresse: "", epost: "", telefon: "",
+};
+const initBolig: Bolig = {
+  adresse: "", type: "leilighet", antall_rom: 2, mobler: false,
+  inkl_strom: false, inkl_internett: false, inkl_parkering: false,
+};
+const initVilkar: Vilkar = {
+  maned_leie: 0, forfall_dag: 1, depositum: 0, depositum_kontonr: "",
+  startdato: "", leie_type: "lopende", sluttdato: "",
+  oppsigelsestid_leietaker: 1, oppsigelsestid_utleier: 3,
+};
+const initTillegg: Tillegg = {
+  kjaledyr: "nei", royking_tillatt: false,
+  internett_betaler: "leietaker", tilleggsvilkar: "",
+};
+
+const initialData: FormData = {
+  utleier:   initUtleier,
+  leietaker: initLeietaker,
+  bolig:     initBolig,
+  vilkar:    initVilkar,
+  tillegg:   initTillegg,
 };
 
 export default function NyKontraktPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [data, setData] = useState<KontraktData>(initialData);
+  const [data, setData] = useState<FormData>(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function update(field: keyof KontraktData, value: unknown) {
-    setData((prev) => ({ ...prev, [field]: value }));
+  function updateUtleier(f: keyof Utleier, v: unknown) {
+    setData((d) => ({ ...d, utleier: { ...d.utleier, [f]: v } }));
+  }
+  function updateLeietaker(f: keyof Leietaker, v: unknown) {
+    setData((d) => ({ ...d, leietaker: { ...d.leietaker, [f]: v } }));
+  }
+  function updateBolig(f: keyof Bolig, v: unknown) {
+    setData((d) => ({ ...d, bolig: { ...d.bolig, [f]: v } }));
+  }
+  function updateVilkar(f: keyof Vilkar, v: unknown) {
+    setData((d) => ({ ...d, vilkar: { ...d.vilkar, [f]: v } }));
+  }
+  function updateTillegg(f: keyof Tillegg, v: unknown) {
+    setData((d) => ({ ...d, tillegg: { ...d.tillegg, [f]: v } }));
   }
 
-  function nextStep() {
-    if (step < TOTAL_STEPS) setStep((s) => s + 1);
-  }
-
-  function prevStep() {
-    if (step > 1) setStep((s) => s - 1);
-  }
+  const depositumMax = data.vilkar.maned_leie * 6;
+  const depositumOverskredet =
+    data.vilkar.depositum > depositumMax && data.vilkar.maned_leie > 0;
 
   async function handleGenerate() {
     setLoading(true);
@@ -81,38 +84,45 @@ export default function NyKontraktPage() {
     }
   }
 
-  const depositumMax = data.maned_leie * 6;
-  const depositumOverskredet = data.depositum > depositumMax && data.maned_leie > 0;
+  const stepLabels = ["Utleier", "Leietaker", "Boligen", "Vilkår", "Tillegg", "Gjennomgang"];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: "#F8F7F4" }}>
+      {/* Header */}
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center gap-4">
-          <Link href="/dashboard" className="text-navy-500 hover:text-navy-900">
+          <Link href="/dashboard" className="text-gray-400 hover:text-gray-700">
             <ChevronLeft className="w-5 h-5" />
           </Link>
-          <span className="font-display text-xl font-bold text-navy-800">Ny leiekontrakt</span>
+          <span className="font-display font-bold text-lg" style={{ color: "#0F1F3D" }}>
+            Ny leiekontrakt
+          </span>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-12">
-        {/* Progress */}
+      <main className="max-w-3xl mx-auto px-6 py-10">
+        {/* Progress bar */}
         <div className="mb-8">
-          <div className="flex justify-between text-xs text-navy-400 mb-2">
-            <span>Steg {step} av {TOTAL_STEPS}</span>
+          <div className="flex justify-between text-xs text-gray-400 mb-2">
+            <span>Steg {step} av {TOTAL_STEPS} — {stepLabels[step - 1]}</span>
             <span>{Math.round((step / TOTAL_STEPS) * 100)}%</span>
           </div>
-          <div className="h-2 bg-gray-200 rounded-full">
+          <div className="h-1.5 bg-gray-200" style={{ borderRadius: "8px" }}>
             <div
-              className="h-2 bg-navy-800 rounded-full transition-all duration-300"
-              style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              className="h-1.5 transition-all duration-300"
+              style={{
+                width: `${(step / TOTAL_STEPS) * 100}%`,
+                background: "#0F1F3D",
+                borderRadius: "8px",
+              }}
             />
           </div>
-          <div className="flex justify-between mt-3">
-            {["Utleier", "Leietaker", "Boligen", "Vilkår", "Tillegg", "Gjennomgang"].map((label, i) => (
+          <div className="flex justify-between mt-2">
+            {stepLabels.map((label, i) => (
               <span
                 key={label}
-                className={`text-xs ${i + 1 <= step ? "text-navy-800 font-medium" : "text-navy-300"}`}
+                className="text-xs"
+                style={{ color: i + 1 <= step ? "#0F1F3D" : "#d1d5db", fontWeight: i + 1 === step ? 600 : 400 }}
               >
                 {label}
               </span>
@@ -120,25 +130,38 @@ export default function NyKontraktPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-8">
-          {step === 1 && <Steg1 data={data} update={update} />}
-          {step === 2 && <Steg2 data={data} update={update} />}
-          {step === 3 && <Steg3 data={data} update={update} />}
-          {step === 4 && <Steg4 data={data} update={update} depositumOverskredet={depositumOverskredet} depositumMax={depositumMax} />}
-          {step === 5 && <Steg5 data={data} update={update} />}
-          {step === 6 && <Steg6 data={data} />}
+        {/* Card */}
+        <div className="bg-white border border-gray-100 p-8 shadow-sm" style={{ borderRadius: "8px" }}>
+          {step === 1 && <StepUtleier data={data.utleier} update={updateUtleier} />}
+          {step === 2 && <StepLeietaker data={data.leietaker} update={updateLeietaker} />}
+          {step === 3 && <StepBolig data={data.bolig} update={updateBolig} />}
+          {step === 4 && (
+            <StepVilkar
+              data={data.vilkar}
+              update={updateVilkar}
+              depositumOverskredet={depositumOverskredet}
+              depositumMax={depositumMax}
+            />
+          )}
+          {step === 5 && <StepTillegg data={data.tillegg} update={updateTillegg} />}
+          {step === 6 && <StepGjennomgang data={data} />}
 
           {error && (
-            <div className="mt-6 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+            <div
+              className="mt-6 flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm"
+              style={{ borderRadius: "8px" }}
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               {error}
             </div>
           )}
 
+          {/* Navigation */}
           <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
             <button
-              onClick={prevStep}
+              onClick={() => setStep((s) => s - 1)}
               disabled={step === 1}
-              className="flex items-center gap-2 text-navy-500 hover:text-navy-900 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 disabled:opacity-30"
             >
               <ChevronLeft className="w-4 h-4" />
               Tilbake
@@ -146,8 +169,9 @@ export default function NyKontraktPage() {
 
             {step < TOTAL_STEPS ? (
               <button
-                onClick={nextStep}
-                className="flex items-center gap-2 bg-navy-800 hover:bg-navy-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+                onClick={() => setStep((s) => s + 1)}
+                className="flex items-center gap-1.5 text-sm font-semibold px-5 py-2.5 text-white transition-opacity hover:opacity-90"
+                style={{ background: "#0F1F3D", borderRadius: "8px" }}
               >
                 Neste
                 <ChevronRight className="w-4 h-4" />
@@ -156,12 +180,13 @@ export default function NyKontraktPage() {
               <button
                 onClick={handleGenerate}
                 disabled={loading || depositumOverskredet}
-                className="flex items-center gap-2 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-navy-900 px-8 py-3 rounded-xl font-semibold transition-colors"
+                className="flex items-center gap-2 text-sm font-semibold px-6 py-2.5 transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#C9A84C", color: "#0F1F3D", borderRadius: "8px" }}
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Genererer...
+                    Genererer…
                   </>
                 ) : (
                   "Generer kontrakt"
@@ -175,17 +200,36 @@ export default function NyKontraktPage() {
   );
 }
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+// ── Shared primitives ─────────────────────────────────────────────────────────
+
+function SectionHeader({ title, sub }: { title: string; sub: string }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-navy-700 mb-1">{label}</label>
-      {children}
-      {hint && <p className="text-xs text-navy-400 mt-1">{hint}</p>}
+    <div className="mb-6">
+      <h2 className="font-display text-2xl font-bold mb-1" style={{ color: "#0F1F3D" }}>{title}</h2>
+      <p className="text-gray-400 text-sm">{sub}</p>
     </div>
   );
 }
 
-function Input({ value, onChange, type = "text", placeholder, required }: {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+        {label}
+      </label>
+      {children}
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+const inputClass =
+  "w-full border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-0";
+const inputStyle = { borderRadius: "8px" };
+
+function TextInput({
+  value, onChange, type = "text", placeholder, required,
+}: {
   value: string | number;
   onChange: (v: string) => void;
   type?: string;
@@ -199,22 +243,21 @@ function Input({ value, onChange, type = "text", placeholder, required }: {
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       required={required}
-      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+      className={inputClass}
+      style={inputStyle}
     />
   );
 }
 
-function Select({ value, onChange, options }: {
+function SelectInput({
+  value, onChange, options,
+}: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full border border-gray-200 rounded-lg px-4 py-3 text-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-500"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass} style={inputStyle}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
       ))}
@@ -222,177 +265,223 @@ function Select({ value, onChange, options }: {
   );
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+function Toggle({
+  checked, onChange, label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer">
-      <div
+    <label className="flex items-center gap-3 cursor-pointer select-none">
+      <button
+        type="button"
         onClick={() => onChange(!checked)}
-        className={`w-11 h-6 rounded-full transition-colors ${checked ? "bg-navy-800" : "bg-gray-200"} relative`}
+        className="relative w-10 h-5.5 flex-shrink-0 transition-colors"
+        style={{
+          width: 40, height: 22,
+          background: checked ? "#0F1F3D" : "#e5e7eb",
+          borderRadius: 11,
+        }}
       >
-        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
-      </div>
-      <span className="text-sm text-navy-700">{label}</span>
+        <span
+          className="absolute top-0.5 transition-transform"
+          style={{
+            width: 18, height: 18,
+            background: "#fff",
+            borderRadius: "50%",
+            left: 2,
+            transform: checked ? "translateX(18px)" : "translateX(0)",
+          }}
+        />
+      </button>
+      <span className="text-sm text-gray-700">{label}</span>
     </label>
   );
 }
 
-function Steg1({ data, update }: { data: KontraktData; update: (f: keyof KontraktData, v: unknown) => void }) {
+// ── Steps ─────────────────────────────────────────────────────────────────────
+
+function StepUtleier({ data, update }: { data: Utleier; update: (f: keyof Utleier, v: unknown) => void }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Utleier</h2>
-        <p className="text-navy-400 text-sm">Informasjon om den som leier ut boligen</p>
-      </div>
+    <div className="space-y-5">
+      <SectionHeader title="Utleier" sub="Informasjon om den som leier ut boligen" />
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Fullt navn *">
-          <Input value={data.utleier_navn} onChange={(v) => update("utleier_navn", v)} placeholder="Ola Nordmann" required />
+          <TextInput value={data.navn} onChange={(v) => update("navn", v)} placeholder="Ola Nordmann" required />
         </Field>
-        <Field label="Telefonnummer">
-          <Input value={data.utleier_telefon} onChange={(v) => update("utleier_telefon", v)} placeholder="+47 000 00 000" type="tel" />
+        <Field label="Telefon">
+          <TextInput value={data.telefon} onChange={(v) => update("telefon", v)} type="tel" placeholder="+47 000 00 000" />
         </Field>
       </div>
       <Field label="Adresse *">
-        <Input value={data.utleier_adresse} onChange={(v) => update("utleier_adresse", v)} placeholder="Storgata 1, 0155 Oslo" required />
+        <TextInput value={data.adresse} onChange={(v) => update("adresse", v)} placeholder="Storgata 1, 0155 Oslo" required />
       </Field>
       <Field label="E-post *">
-        <Input value={data.utleier_epost} onChange={(v) => update("utleier_epost", v)} placeholder="ola@eksempel.no" type="email" required />
+        <TextInput value={data.epost} onChange={(v) => update("epost", v)} type="email" placeholder="ola@eksempel.no" required />
       </Field>
-      <Toggle
-        checked={data.utleier_er_firma}
-        onChange={(v) => update("utleier_er_firma", v)}
-        label="Utleier er et firma"
-      />
-      {data.utleier_er_firma && (
+      <Toggle checked={data.er_firma} onChange={(v) => update("er_firma", v)} label="Utleier er registrert som firma" />
+      {data.er_firma && (
         <Field label="Organisasjonsnummer">
-          <Input value={data.utleier_orgnr || ""} onChange={(v) => update("utleier_orgnr", v)} placeholder="123 456 789" />
+          <TextInput value={data.orgnr ?? ""} onChange={(v) => update("orgnr", v)} placeholder="123 456 789" />
         </Field>
       )}
     </div>
   );
 }
 
-function Steg2({ data, update }: { data: KontraktData; update: (f: keyof KontraktData, v: unknown) => void }) {
+function StepLeietaker({ data, update }: { data: Leietaker; update: (f: keyof Leietaker, v: unknown) => void }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Leietaker</h2>
-        <p className="text-navy-400 text-sm">Informasjon om den som skal leie boligen</p>
-      </div>
+    <div className="space-y-5">
+      <SectionHeader title="Leietaker" sub="Informasjon om den som skal leie boligen" />
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Fullt navn *">
-          <Input value={data.leietaker_navn} onChange={(v) => update("leietaker_navn", v)} placeholder="Kari Nordmann" required />
+          <TextInput value={data.navn} onChange={(v) => update("navn", v)} placeholder="Kari Nordmann" required />
         </Field>
-        <Field label="Telefonnummer">
-          <Input value={data.leietaker_telefon} onChange={(v) => update("leietaker_telefon", v)} placeholder="+47 000 00 000" type="tel" />
+        <Field label="Telefon">
+          <TextInput value={data.telefon} onChange={(v) => update("telefon", v)} type="tel" placeholder="+47 000 00 000" />
         </Field>
       </div>
       <Field label="Nåværende adresse">
-        <Input value={data.leietaker_adresse} onChange={(v) => update("leietaker_adresse", v)} placeholder="Lille gate 2, 0156 Oslo" />
+        <TextInput value={data.adresse} onChange={(v) => update("adresse", v)} placeholder="Lille gate 2, 0156 Oslo" />
       </Field>
       <Field label="E-post *">
-        <Input value={data.leietaker_epost} onChange={(v) => update("leietaker_epost", v)} placeholder="kari@eksempel.no" type="email" required />
+        <TextInput value={data.epost} onChange={(v) => update("epost", v)} type="email" placeholder="kari@eksempel.no" required />
       </Field>
     </div>
   );
 }
 
-function Steg3({ data, update }: { data: KontraktData; update: (f: keyof KontraktData, v: unknown) => void }) {
+function StepBolig({ data, update }: { data: Bolig; update: (f: keyof Bolig, v: unknown) => void }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Boligen</h2>
-        <p className="text-navy-400 text-sm">Informasjon om utleieobjektet</p>
-      </div>
-      <Field label="Adresse til utleieobjektet *">
-        <Input value={data.bolig_adresse} onChange={(v) => update("bolig_adresse", v)} placeholder="Leilighetsgata 5B, 0157 Oslo" required />
+    <div className="space-y-5">
+      <SectionHeader title="Boligen" sub="Informasjon om utleieobjektet" />
+      <Field label="Adresse *">
+        <TextInput value={data.adresse} onChange={(v) => update("adresse", v)} placeholder="Leilighetsgata 5B, 0157 Oslo" required />
       </Field>
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Type bolig">
-          <Select
-            value={data.bolig_type}
-            onChange={(v) => update("bolig_type", v)}
+          <SelectInput
+            value={data.type}
+            onChange={(v) => update("type", v)}
             options={[
               { value: "leilighet", label: "Leilighet" },
-              { value: "hybel", label: "Hybel" },
-              { value: "enebolig", label: "Enebolig" },
-              { value: "rekkehus", label: "Rekkehus" },
+              { value: "hybel",     label: "Hybel" },
+              { value: "enebolig",  label: "Enebolig" },
+              { value: "rekkehus",  label: "Rekkehus" },
             ]}
           />
         </Field>
         <Field label="Antall rom">
-          <Input value={data.bolig_antall_rom} onChange={(v) => update("bolig_antall_rom", parseInt(v) || 1)} type="number" />
+          <TextInput value={data.antall_rom} onChange={(v) => update("antall_rom", parseInt(v) || 1)} type="number" />
         </Field>
       </div>
-      <div className="space-y-3">
-        <Toggle checked={data.bolig_mobler} onChange={(v) => update("bolig_mobler", v)} label="Møblert" />
-        <Toggle checked={data.inkluderer_strom} onChange={(v) => update("inkluderer_strom", v)} label="Inkluderer strøm" />
-        <Toggle checked={data.inkluderer_internett} onChange={(v) => update("inkluderer_internett", v)} label="Inkluderer internett" />
-        <Toggle checked={data.inkluderer_parkering} onChange={(v) => update("inkluderer_parkering", v)} label="Inkluderer parkering" />
+      <div className="space-y-3 pt-1">
+        <Toggle checked={data.mobler}         onChange={(v) => update("mobler", v)}         label="Møblert" />
+        <Toggle checked={data.inkl_strom}     onChange={(v) => update("inkl_strom", v)}     label="Strøm inkludert i leien" />
+        <Toggle checked={data.inkl_internett} onChange={(v) => update("inkl_internett", v)} label="Internett inkludert i leien" />
+        <Toggle checked={data.inkl_parkering} onChange={(v) => update("inkl_parkering", v)} label="Parkering inkludert i leien" />
       </div>
     </div>
   );
 }
 
-function Steg4({
-  data, update, depositumOverskredet, depositumMax
+function StepVilkar({
+  data, update, depositumOverskredet, depositumMax,
 }: {
-  data: KontraktData;
-  update: (f: keyof KontraktData, v: unknown) => void;
+  data: Vilkar;
+  update: (f: keyof Vilkar, v: unknown) => void;
   depositumOverskredet: boolean;
   depositumMax: number;
 }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Leievilkår</h2>
-        <p className="text-navy-400 text-sm">Økonomi og tidsperiode</p>
-      </div>
+    <div className="space-y-5">
+      <SectionHeader title="Leievilkår" sub="Økonomi og tidsperiode" />
       <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Månedlig leie (NOK) *">
-          <Input value={data.maned_leie || ""} onChange={(v) => update("maned_leie", parseFloat(v) || 0)} type="number" placeholder="12000" required />
+        <Field label="Månedlig leie (kr) *">
+          <TextInput
+            value={data.maned_leie || ""}
+            onChange={(v) => update("maned_leie", parseFloat(v) || 0)}
+            type="number"
+            placeholder="12 000"
+            required
+          />
         </Field>
-        <Field label="Forfallsdato (dag i måneden)">
-          <Input value={data.forfall_dag} onChange={(v) => update("forfall_dag", parseInt(v) || 1)} type="number" />
+        <Field label="Forfallsdag (1–28)">
+          <TextInput
+            value={data.forfall_dag}
+            onChange={(v) => update("forfall_dag", Math.min(28, Math.max(1, parseInt(v) || 1)))}
+            type="number"
+          />
         </Field>
       </div>
-      <div>
-        <Field label="Depositum (NOK)" hint={`Maks tillatt: ${depositumMax > 0 ? depositumMax.toLocaleString("nb-NO") + " kr (6x månedleie)" : "avhenger av månedleie"}`}>
-          <Input value={data.depositum || ""} onChange={(v) => update("depositum", parseFloat(v) || 0)} type="number" placeholder="0" />
-        </Field>
-        {depositumOverskredet && (
-          <div className="mt-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-4 py-3 text-sm">
-            ⚠️ Ifølge husleieloven § 3-5 kan depositumet ikke overstige 6 månedlige leiebetalinger ({depositumMax.toLocaleString("nb-NO")} kr).
-          </div>
-        )}
-      </div>
+
+      <Field
+        label="Depositum (kr)"
+        hint={depositumMax > 0 ? `Maks tillatt: ${depositumMax.toLocaleString("nb-NO")} kr (6 × månedleie, jf. husleieloven § 3-5)` : undefined}
+      >
+        <TextInput
+          value={data.depositum || ""}
+          onChange={(v) => update("depositum", parseFloat(v) || 0)}
+          type="number"
+          placeholder="0"
+        />
+      </Field>
+
+      {depositumOverskredet && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 border text-sm"
+          style={{ background: "#fffbeb", borderColor: "#fcd34d", borderRadius: "8px", color: "#92400e" }}
+        >
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Depositum overskrider grensen på{" "}
+            <strong>{depositumMax.toLocaleString("nb-NO")} kr</strong> som fastsatt i
+            husleieloven § 3-5. Reduser beløpet for å fortsette.
+          </span>
+        </div>
+      )}
+
       <Field label="Depositumkonto (kontonummer)">
-        <Input value={data.depositum_kontonr} onChange={(v) => update("depositum_kontonr", v)} placeholder="1234.56.78901" />
+        <TextInput value={data.depositum_kontonr} onChange={(v) => update("depositum_kontonr", v)} placeholder="1234.56.78901" />
       </Field>
-      <Field label="Startdato for leieforholdet *">
-        <Input value={data.startdato} onChange={(v) => update("startdato", v)} type="date" required />
+
+      <Field label="Startdato *">
+        <TextInput value={data.startdato} onChange={(v) => update("startdato", v)} type="date" required />
       </Field>
+
       <Field label="Type leieforhold">
-        <Select
+        <SelectInput
           value={data.leie_type}
           onChange={(v) => update("leie_type", v)}
           options={[
-            { value: "lopende", label: "Løpende (ingen sluttdato)" },
-            { value: "tidsbegrenset", label: "Tidsbegrenset" },
+            { value: "lopende",        label: "Løpende (ingen bestemt sluttdato)" },
+            { value: "tidsbegrenset",  label: "Tidsbegrenset" },
           ]}
         />
       </Field>
+
       {data.leie_type === "tidsbegrenset" && (
         <Field label="Sluttdato">
-          <Input value={data.sluttdato || ""} onChange={(v) => update("sluttdato", v)} type="date" />
+          <TextInput value={data.sluttdato ?? ""} onChange={(v) => update("sluttdato", v)} type="date" />
         </Field>
       )}
+
       {data.leie_type === "lopende" && (
         <div className="grid md:grid-cols-2 gap-4">
-          <Field label="Oppsigelsestid for leietaker (måneder)" hint="Minimum 1 måned etter husleieloven">
-            <Input value={data.oppsigelsestid_leietaker} onChange={(v) => update("oppsigelsestid_leietaker", parseInt(v) || 1)} type="number" />
+          <Field label="Oppsigelsestid — leietaker (mnd)" hint="Min. 1 måned (§ 9-6)">
+            <TextInput
+              value={data.oppsigelsestid_leietaker}
+              onChange={(v) => update("oppsigelsestid_leietaker", Math.max(1, parseInt(v) || 1))}
+              type="number"
+            />
           </Field>
-          <Field label="Oppsigelsestid for utleier (måneder)" hint="Minimum 3 måneder etter husleieloven">
-            <Input value={data.oppsigelsestid_utleier} onChange={(v) => update("oppsigelsestid_utleier", parseInt(v) || 3)} type="number" />
+          <Field label="Oppsigelsestid — utleier (mnd)" hint="Min. 3 måneder (§ 9-6)">
+            <TextInput
+              value={data.oppsigelsestid_utleier}
+              onChange={(v) => update("oppsigelsestid_utleier", Math.max(3, parseInt(v) || 3))}
+              type="number"
+            />
           </Field>
         </div>
       )}
@@ -400,83 +489,85 @@ function Steg4({
   );
 }
 
-function Steg5({ data, update }: { data: KontraktData; update: (f: keyof KontraktData, v: unknown) => void }) {
+function StepTillegg({ data, update }: { data: Tillegg; update: (f: keyof Tillegg, v: unknown) => void }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Tilleggsvilkår</h2>
-        <p className="text-navy-400 text-sm">Spesifikke regler og avtaler</p>
-      </div>
+    <div className="space-y-5">
+      <SectionHeader title="Tilleggsvilkår" sub="Spesifikke regler og avtaler" />
       <Field label="Kjæledyr">
-        <Select
+        <SelectInput
           value={data.kjaledyr}
           onChange={(v) => update("kjaledyr", v)}
           options={[
-            { value: "nei", label: "Ikke tillatt" },
-            { value: "ja", label: "Tillatt" },
-            { value: "etter_avtale", label: "Etter avtale" },
+            { value: "nei",          label: "Ikke tillatt" },
+            { value: "ja",           label: "Tillatt" },
+            { value: "etter_avtale", label: "Etter særskilt avtale" },
           ]}
         />
       </Field>
       <Toggle checked={data.royking_tillatt} onChange={(v) => update("royking_tillatt", v)} label="Røyking innendørs er tillatt" />
       <Field label="Hvem betaler internett?">
-        <Select
+        <SelectInput
           value={data.internett_betaler}
           onChange={(v) => update("internett_betaler", v)}
           options={[
             { value: "leietaker", label: "Leietaker" },
-            { value: "utleier", label: "Utleier" },
-            { value: "delt", label: "Delt kostnad" },
+            { value: "utleier",   label: "Utleier" },
+            { value: "delt",      label: "Delt kostnad" },
           ]}
         />
       </Field>
-      <Field label="Spesielle vilkår eller tilleggsavtaler">
+      <Field label="Særskilte vilkår eller tilleggsavtaler">
         <textarea
-          value={data.tilleggsvilkar || ""}
+          value={data.tilleggsvilkar ?? ""}
           onChange={(e) => update("tilleggsvilkar", e.target.value)}
           rows={4}
-          className="w-full border border-gray-200 rounded-lg px-4 py-3 text-navy-900 focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none"
-          placeholder="Eventuelle særskilte avtaler mellom partene..."
+          className={inputClass + " resize-none"}
+          style={inputStyle}
+          placeholder="Eventuelle avtaler som ikke dekkes av standardvilkårene…"
         />
       </Field>
     </div>
   );
 }
 
-function Steg6({ data }: { data: KontraktData }) {
-  const rows = [
-    ["Utleier", data.utleier_navn + (data.utleier_er_firma ? ` (Org.nr: ${data.utleier_orgnr})` : "")],
-    ["Leietaker", data.leietaker_navn],
-    ["Adresse", data.bolig_adresse],
-    ["Type", data.bolig_type],
-    ["Månedlig leie", `${data.maned_leie.toLocaleString("nb-NO")} kr`],
-    ["Depositum", `${data.depositum.toLocaleString("nb-NO")} kr`],
-    ["Startdato", data.startdato ? new Date(data.startdato).toLocaleDateString("nb-NO") : "—"],
-    ["Leieforhold", data.leie_type === "lopende" ? "Løpende" : `Tidsbegrenset til ${data.sluttdato ? new Date(data.sluttdato).toLocaleDateString("nb-NO") : "—"}`],
-    ["Kjæledyr", { nei: "Ikke tillatt", ja: "Tillatt", etter_avtale: "Etter avtale" }[data.kjaledyr]],
-    ["Røyking", data.royking_tillatt ? "Tillatt" : "Ikke tillatt"],
+function StepGjennomgang({ data }: { data: FormData }) {
+  const rows: [string, string][] = [
+    ["Utleier",       data.utleier.navn + (data.utleier.er_firma ? ` (${data.utleier.orgnr})` : "")],
+    ["Leietaker",     data.leietaker.navn],
+    ["Adresse",       data.bolig.adresse],
+    ["Type bolig",    data.bolig.type],
+    ["Månedlig leie", `${data.vilkar.maned_leie.toLocaleString("nb-NO")} kr`],
+    ["Depositum",     `${data.vilkar.depositum.toLocaleString("nb-NO")} kr`],
+    ["Startdato",     data.vilkar.startdato ? new Date(data.vilkar.startdato).toLocaleDateString("nb-NO") : "—"],
+    ["Leieforhold",   data.vilkar.leie_type === "lopende"
+      ? "Løpende"
+      : `Tidsbegrenset til ${data.vilkar.sluttdato ? new Date(data.vilkar.sluttdato).toLocaleDateString("nb-NO") : "—"}`],
+    ["Kjæledyr",      { nei: "Ikke tillatt", ja: "Tillatt", etter_avtale: "Etter avtale" }[data.tillegg.kjaledyr]],
+    ["Røyking",       data.tillegg.royking_tillatt ? "Tillatt" : "Ikke tillatt"],
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl font-bold text-navy-900 mb-1">Gjennomgang</h2>
-        <p className="text-navy-400 text-sm">Kontroller informasjonen før du genererer kontrakten</p>
-      </div>
-      <div className="divide-y divide-gray-100">
+      <SectionHeader title="Gjennomgang" sub="Kontroller informasjonen før du genererer" />
+      <div className="divide-y divide-gray-50">
         {rows.map(([label, value]) => (
-          <div key={label} className="py-3 flex justify-between">
-            <span className="text-sm text-navy-500">{label}</span>
-            <span className="text-sm font-medium text-navy-900">{value}</span>
+          <div key={label} className="py-3 flex justify-between items-center">
+            <span className="text-sm text-gray-400">{label}</span>
+            <span className="text-sm font-medium" style={{ color: "#0F1F3D" }}>{value}</span>
           </div>
         ))}
       </div>
-      {data.tilleggsvilkar && (
-        <div className="bg-gray-50 rounded-xl p-4">
-          <div className="text-xs font-medium text-navy-500 uppercase tracking-wider mb-2">Tilleggsvilkår</div>
-          <p className="text-sm text-navy-700">{data.tilleggsvilkar}</p>
+      {data.tillegg.tilleggsvilkar && (
+        <div className="p-4 bg-gray-50" style={{ borderRadius: "8px" }}>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+            Tilleggsvilkår
+          </div>
+          <p className="text-sm text-gray-600">{data.tillegg.tilleggsvilkar}</p>
         </div>
       )}
+      <p className="text-xs text-gray-400 pt-2">
+        Ved å klikke &quot;Generer kontrakt&quot; godtar du at kontrakten genereres med informasjonen ovenfor.
+      </p>
     </div>
   );
 }

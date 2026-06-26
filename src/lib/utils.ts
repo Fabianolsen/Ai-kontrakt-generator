@@ -6,9 +6,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatNok(amount: number): string {
-  return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "NOK" }).format(amount);
+  return new Intl.NumberFormat("nb-NO", {
+    style: "currency",
+    currency: "NOK",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 export function formatDate(dateStr: string): string {
-  return new Intl.DateTimeFormat("nb-NO", { dateStyle: "long" }).format(new Date(dateStr));
+  return new Intl.DateTimeFormat("nb-NO", { dateStyle: "long" }).format(
+    new Date(dateStr)
+  );
 }

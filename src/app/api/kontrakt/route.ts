@@ -1,132 +1,142 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { KontraktData } from "@/lib/types";
+import { FormData } from "@/lib/types";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
-const SYSTEM_PROMPT = `Du er en norsk juridisk ekspert spesialisert på husleierett. Din oppgave er å generere profesjonelle, juridisk korrekte leiekontrakter basert på norsk husleielov av 1999.
+const SYSTEM_PROMPT = `Du er en norsk juridisk ekspert spesialisert på husleierett. Din oppgave er å generere profesjonelle, juridisk korrekte leiekontrakter basert på husleieloven av 1999 (lov om husleieavtaler).
 
-VIKTIGE REGLER:
-- Kontrakten skal alltid overholde husleieloven av 1999 (lov om husleieavtaler)
+JURIDISKE RAMMER DU MÅ OVERHOLDE:
 - Depositumet kan ikke overstige 6 månedlige leiebetalinger (§ 3-5)
-- For løpende leieforhold: minimum 1 måneds oppsigelsestid for leietaker, 3 måneder for utleier (§ 9-6)
-- For tidsbegrensede leieforhold under 3 år: leietaker har oppsigelsesvern (§ 9-2)
+- Depositum skal stå på særskilt sperret konto i leietakers navn (§ 3-5)
 - Leien kan ikke kreves betalt mer enn 1 måned i forveien (§ 3-2)
-- Depositum skal stå på særskilt konto i leietakers navn (§ 3-5)
+- Løpende leieforhold: minimum 1 måneds oppsigelsestid for leietaker (§ 9-6)
+- Løpende leieforhold: minimum 3 måneders oppsigelsestid for utleier (§ 9-6)
+- Tidsbegrenset leieforhold under 3 år: særskilte regler for opphør (§ 9-2)
+- Utleier kan ikke ensidig endre leievilkår i løpet av leietiden
 
-FORMAT:
-- Skriv kontrakten på norsk bokmål
-- Bruk profesjonelt, juridisk språk
-- Inkluder alle relevante paragrafer
-- Strukturer med tydelige overskrifter og paragrafer
-- Inkluder signaturfelt for begge parter på slutten
-- IKKE inkluder noe utenom selve kontraktteksten
+KRAV TIL OUTPUT:
+- Skriv KUN kontraktteksten — ingen innledning, ingen forklaring utenfor selve kontrakten
+- Norsk bokmål, profesjonelt juridisk språk
+- Bruk §-nummerering for alle paragrafer
+- Inkluder dato og underskriftsfelt for begge parter til slutt
 
-STRUKTUR:
-1. Overskrift: LEIEKONTRAKT
-2. Parter (§ 1)
-3. Leieobjektet (§ 2)
-4. Leietid (§ 3)
-5. Leie og betaling (§ 4)
-6. Depositum (§ 5)
-7. Leietakers bruk av leieobjektet (§ 6)
-8. Vedlikehold (§ 7)
-9. Oppsigelse (§ 8)
-10. Tilleggsvilkår (§ 9) — kun hvis angitt
-11. Underskrifter`;
+OBLIGATORISK STRUKTUR:
+§ 1  Parter
+§ 2  Leieobjektet
+§ 3  Leietid
+§ 4  Leie og betaling
+§ 5  Depositum
+§ 6  Leietakers bruk av leieobjektet
+§ 7  Vedlikehold og tilstand
+§ 8  Oppsigelse
+§ 9  Tilleggsvilkår  ← utelat hvis ingen tilleggsvilkår
+§ 10 Tvister og verneting
+Underskrifter`;
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Ikke autorisert" }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: "Ikke autorisert" }, { status: 401 });
+  // Enforce contract limit for free plan
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("plan")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!sub || sub.plan === "gratis") {
+    const { count } = await supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    if ((count ?? 0) >= 1) {
+      return NextResponse.json(
+        { error: "Gratisplanen tillater kun 1 kontrakt. Oppgrader for ubegrenset tilgang." },
+        { status: 403 }
+      );
+    }
   }
 
-  const data: KontraktData = await req.json();
+  const form: FormData = await req.json();
+  const { utleier, leietaker, bolig, vilkar, tillegg } = form;
 
-  const boligTypeMap = {
-    leilighet: "leilighet",
-    hybel: "hybel",
-    enebolig: "enebolig",
-    rekkehus: "rekkehus",
-  };
-
-  const kjaledyrMap = {
-    ja: "tillatt",
-    nei: "ikke tillatt",
-    etter_avtale: "etter særskilt avtale",
-  };
+  const boligTypeLabel = { leilighet: "leilighet", hybel: "hybel", enebolig: "enebolig", rekkehus: "rekkehus" };
+  const kjaledyrLabel  = { ja: "tillatt", nei: "ikke tillatt", etter_avtale: "etter særskilt skriftlig avtale" };
 
   const inkluderinger = [
-    data.inkluderer_strom && "strøm",
-    data.inkluderer_internett && "internett",
-    data.inkluderer_parkering && "parkering",
-  ].filter(Boolean);
+    bolig.inkl_strom     && "strøm",
+    bolig.inkl_internett && "internett",
+    bolig.inkl_parkering && "parkering",
+  ].filter(Boolean).join(", ") || "ingen";
 
-  const userPrompt = `Generer en leiekontrakt med følgende informasjon:
+  const userPrompt = `Generer en leiekontrakt med følgende data:
 
-UTLEIER:
-- Navn: ${data.utleier_navn}
-- Adresse: ${data.utleier_adresse}
-- E-post: ${data.utleier_epost}
-- Telefon: ${data.utleier_telefon}
-${data.utleier_er_firma ? `- Firma med organisasjonsnummer: ${data.utleier_orgnr}` : "- Privatperson"}
-
-LEIETAKER:
-- Navn: ${data.leietaker_navn}
-- Adresse: ${data.leietaker_adresse}
-- E-post: ${data.leietaker_epost}
-- Telefon: ${data.leietaker_telefon}
-
-LEIEOBJEKT:
-- Adresse: ${data.bolig_adresse}
-- Type: ${boligTypeMap[data.bolig_type]}
-- Antall rom: ${data.bolig_antall_rom}
-- Møblert: ${data.bolig_mobler ? "ja" : "nei"}
-${inkluderinger.length > 0 ? `- Inkludert i leien: ${inkluderinger.join(", ")}` : "- Ingen ekstra inkluderinger i leien"}
-
-LEIEVILKÅR:
-- Månedlig leie: ${data.maned_leie.toLocaleString("nb-NO")} kr
-- Forfallsdato: ${data.forfall_dag}. i måneden
-- Depositum: ${data.depositum.toLocaleString("nb-NO")} kr
-- Depositumkonto: ${data.depositum_kontonr || "Oppgis separat"}
-- Startdato: ${new Date(data.startdato).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })}
-- Leieforhold: ${data.leie_type === "lopende" ? `Løpende, uten sluttdato` : `Tidsbegrenset til ${new Date(data.sluttdato!).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })}`}
-${data.leie_type === "lopende" ? `- Oppsigelsestid leietaker: ${data.oppsigelsestid_leietaker} måned(er)\n- Oppsigelsestid utleier: ${data.oppsigelsestid_utleier} måneder` : ""}
-
-TILLEGGSVILKÅR:
-- Kjæledyr: ${kjaledyrMap[data.kjaledyr]}
-- Røyking innendørs: ${data.royking_tillatt ? "tillatt" : "ikke tillatt"}
-- Internettbetaler: ${data.internett_betaler}
-${data.tilleggsvilkar ? `- Særskilte vilkår: ${data.tilleggsvilkar}` : ""}`;
+${JSON.stringify({
+  utleier: {
+    navn:    utleier.navn,
+    adresse: utleier.adresse,
+    epost:   utleier.epost,
+    telefon: utleier.telefon,
+    type:    utleier.er_firma ? `Firma (org.nr. ${utleier.orgnr})` : "Privatperson",
+  },
+  leietaker: {
+    navn:    leietaker.navn,
+    adresse: leietaker.adresse,
+    epost:   leietaker.epost,
+    telefon: leietaker.telefon,
+  },
+  bolig: {
+    adresse:      bolig.adresse,
+    type:         boligTypeLabel[bolig.type],
+    antall_rom:   bolig.antall_rom,
+    mobler:       bolig.mobler ? "møblert" : "umøblert",
+    inkludert_i_leien: inkluderinger,
+  },
+  vilkar: {
+    maned_leie:   `${vilkar.maned_leie.toLocaleString("nb-NO")} kr`,
+    forfall:      `${vilkar.forfall_dag}. i måneden`,
+    depositum:    `${vilkar.depositum.toLocaleString("nb-NO")} kr`,
+    depositumkonto: vilkar.depositum_kontonr || "Oppgis separat",
+    startdato:    new Date(vilkar.startdato).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" }),
+    leie_type:    vilkar.leie_type === "lopende"
+                    ? `Løpende (ingen sluttdato)`
+                    : `Tidsbegrenset til ${vilkar.sluttdato ? new Date(vilkar.sluttdato).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" }) : "—"}`,
+    oppsigelsestid_leietaker: vilkar.leie_type === "lopende" ? `${vilkar.oppsigelsestid_leietaker} måned(er)` : "N/A",
+    oppsigelsestid_utleier:   vilkar.leie_type === "lopende" ? `${vilkar.oppsigelsestid_utleier} måneder` : "N/A",
+  },
+  tillegg: {
+    kjaledyr:          kjaledyrLabel[tillegg.kjaledyr],
+    royking_innendors: tillegg.royking_tillatt ? "tillatt" : "ikke tillatt",
+    internett_betaler: tillegg.internett_betaler,
+    tilleggsvilkar:    tillegg.tilleggsvilkar || null,
+  },
+}, null, 2)}`;
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
-    messages: [{ role: "user", content: userPrompt }],
     system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
   });
 
-  const innhold = message.content[0].type === "text" ? message.content[0].text : "";
+  const generated_text =
+    message.content[0].type === "text" ? message.content[0].text : "";
 
-  const { data: kontrakt, error } = await supabase
-    .from("kontrakter")
+  const { data: contract, error } = await supabase
+    .from("contracts")
     .insert({
       user_id: user.id,
-      data,
-      innhold,
+      form_data: form,
+      generated_text,
       status: "generert",
     })
     .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ id: kontrakt.id });
+  return NextResponse.json({ id: contract.id });
 }

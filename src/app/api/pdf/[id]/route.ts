@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Ikke autorisert" }, { status: 401 });
 
-  const { data: kontrakt } = await supabase
-    .from("kontrakter")
-    .select("innhold, data")
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("generated_text, form_data")
     .eq("id", params.id)
     .eq("user_id", user.id)
     .single();
 
-  if (!kontrakt) return NextResponse.json({ error: "Ikke funnet" }, { status: 404 });
+  if (!contract) return NextResponse.json({ error: "Ikke funnet" }, { status: 404 });
 
-  // Generate PDF using puppeteer
   const puppeteer = await import("puppeteer");
   const browser = await puppeteer.default.launch({
     headless: true,
@@ -26,44 +28,60 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const page = await browser.newPage();
 
+    const escaped = contract.generated_text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
     const html = `<!DOCTYPE html>
 <html lang="nb">
 <head>
   <meta charset="UTF-8">
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Inter:wght@400;500&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Georgia', serif;
-      font-size: 11pt;
-      line-height: 1.6;
-      color: #1a1a2e;
-      padding: 40px 60px;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 11.5pt;
+      line-height: 1.75;
+      color: #0F1F3D;
     }
-    h1 {
-      font-size: 20pt;
+    .watermark-header {
       text-align: center;
-      margin-bottom: 8px;
-      letter-spacing: 1px;
+      border-bottom: 2px solid #C9A84C;
+      padding-bottom: 12px;
+      margin-bottom: 28px;
     }
-    .subtitle {
-      text-align: center;
-      color: #666;
-      font-size: 10pt;
-      margin-bottom: 32px;
-      border-bottom: 2px solid #1a1a2e;
-      padding-bottom: 16px;
+    .watermark-header .brand {
+      font-size: 13pt;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #0F1F3D;
+    }
+    .watermark-header .tagline {
+      font-size: 9pt;
+      color: #6b7280;
+      margin-top: 2px;
     }
     pre {
       white-space: pre-wrap;
-      font-family: 'Georgia', serif;
-      font-size: 10.5pt;
-      line-height: 1.7;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 11pt;
+      line-height: 1.8;
     }
-    @page { margin: 20mm 25mm; }
+    @page {
+      size: A4;
+      margin: 22mm 28mm;
+    }
   </style>
 </head>
 <body>
-  <pre>${kontrakt.innhold.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+  <div class="watermark-header">
+    <div class="brand">Avtalio</div>
+    <div class="tagline">Generert via avtalio.no — Basert på husleieloven av 1999</div>
+  </div>
+  <pre>${escaped}</pre>
 </body>
 </html>`;
 
@@ -72,7 +90,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "25mm", right: "25mm" },
     });
 
     return new NextResponse(Buffer.from(pdf), {
