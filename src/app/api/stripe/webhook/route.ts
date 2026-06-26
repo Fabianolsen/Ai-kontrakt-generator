@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 function getAdminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
