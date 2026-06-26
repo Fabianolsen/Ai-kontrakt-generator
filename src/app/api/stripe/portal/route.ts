@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST() {
@@ -16,6 +16,8 @@ export async function POST() {
   if (!sub?.stripe_customer_id) {
     return NextResponse.json({ error: "Ingen aktiv betaling funnet" }, { status: 400 });
   }
+
+  const stripe = getStripe();
 
   const session = await stripe.billingPortal.sessions.create({
     customer: sub.stripe_customer_id,

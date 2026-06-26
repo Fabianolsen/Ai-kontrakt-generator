@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe, PRICE_IDS, PaidPlan } from "@/lib/stripe";
+import { getStripe, PRICE_IDS, PaidPlan } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
   const { plan } = await req.json() as { plan: PaidPlan };
   if (!PRICE_IDS[plan]) return NextResponse.json({ error: "Ugyldig plan" }, { status: 400 });
 
-  // Hent eller opprett Stripe-kunde
+  const stripe = getStripe();
+
   const { data: sub } = await supabase
     .from("subscriptions")
     .select("stripe_customer_id")
